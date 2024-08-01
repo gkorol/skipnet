@@ -349,9 +349,11 @@ def _profile(args):
     for batch_idx, (input, target) in enumerate(test_loader):
         if torch.cuda.is_available():
             input_var = Variable(input, volatile=True).cuda()
+            _activities=[ProfilerActivity.GPU]
         else:
             input_var = Variable(input, volatile=True) #.cuda()
-        with profile(activities=[ProfilerActivity.CPU], record_shapes=True) as prof:
+            _activities=[ProfilerActivity.CPU]
+        with profile(activities=_activities, record_shapes=True) as prof:
             with record_function("model_inference"):
                 # for (inputs, targets) in tqdm.tqdm(testloader, total=len(testloader)):
                 model(input_var)
