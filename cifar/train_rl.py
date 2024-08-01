@@ -209,7 +209,7 @@ def run_training(args, tune_config={}, reporter=None):
         # measuring data loading time
         data_time.update(time.time() - end)
 
-        target = target.cuda(async=False)
+        target = target.cuda() #(async=False)
         input_var = Variable(input).cuda()
         target_var = Variable(target).cuda()
 
@@ -326,7 +326,7 @@ def validate(args, test_loader, model):
     model.eval()
     end = time.time()
     for i, (input, target) in enumerate(test_loader):
-        target = target.cuda(async=True)
+        target = target.cuda() #(async=True)
         input_var = Variable(input, volatile=True).cuda()
         target_var = Variable(target, volatile=True).cuda()
 
