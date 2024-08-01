@@ -365,8 +365,8 @@ def _profile(args):
         print("Per sample CPU",_time_cpu," (",input.size()[0],")")
         times.append(_time_cpu) 
         if torch.cuda.is_available():
-            _time_gpu = sum([item.cuda_time for item in prof.profiler.function_events])
-            _time_gpu = (_time_gpu / 1000.) / input.size()[0]
+            # _time_gpu = sum([item.cuda_time for item in prof.profiler.function_events])
+            _time_gpu = (prof.profiler.self_cuda_time_total / 1000.) / input.size()[0]
             print("Per sample GPU",_time_gpu," (",input.size()[0],")")
             times_gpu.append(_time_gpu)
         print("\n")
