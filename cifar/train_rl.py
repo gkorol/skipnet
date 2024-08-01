@@ -237,8 +237,23 @@ def run_training(args, tune_config={}, reporter=None):
 
         # apply REINFORCE to each gate
         # Pytorch 2.0 version. `reinforce` function got removed in Pytorch 3.0
-        for action, R in zip(gate_saved_actions, cum_rewards):
-             action.reinforce(args.rl_weight * R)
+        # for action, R in zip(gate_saved_actions, cum_rewards):
+            # Instead of:
+            # probs = policy_network(state)
+            # action = probs.multinomial()
+            # next_state, reward = env.step(action)
+            # action.reinforce(reward)
+            # action.backward()
+            # Use:
+            # probs = policy_network(state)
+            # # NOTE: categorical is equivalent to what used to be called multinomial
+            # m = torch.distributions.Categorical(probs)
+            # action = m.sample()
+            # next_state, reward = env.step(action)
+            # loss = -m.log_prob(action) * reward
+            # loss.backward()
+            
+            # action.reinforce(args.rl_weight * R)
 
 
         total_loss = total_criterion(output, target_var)
