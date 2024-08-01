@@ -26,7 +26,7 @@ def prepare_train_data(dataset='cifar10', batch_size=128,
         ])
 
         trainset = torchvision.datasets.__dict__[dataset.upper()](
-            root='/tmp/data', train=True, download=True, transform=transform_train)
+            root='~/', train=True, download=True, transform=transform_train)
         train_loader = torch.utils.data.DataLoader(trainset,
                                                    batch_size=batch_size,
                                                    shuffle=shuffle,
@@ -79,7 +79,7 @@ def prepare_test_data(dataset='cifar10', batch_size=128,
                                  (0.2023, 0.1994, 0.2010)),
         ])
 
-        testset = torchvision.datasets.__dict__[dataset.upper()](root='/tmp/data',
+        testset = torchvision.datasets.__dict__[dataset.upper()](root='~/',
                                                train=False,
                                                download=True,
                                                transform=transform_test)

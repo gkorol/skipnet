@@ -1,0 +1,14 @@
+08-01-24 14:47:start evaluating cifar10_feedforward_20 with checkpoints from save_checkpoints/skip_resnet_20.pth.tar
+08-01-24 14:47:=> loading checkpoint `save_checkpoints/skip_resnet_20.pth.tar`
+08-01-24 14:47:=> loaded checkpoint `save_checkpoints/skip_resnet_20.pth.tar` (iter: 55000)
+08-01-24 14:47:Test: [0/79]	Time: 0.2879(0.2879)	Loss: 0.256(0.256)	Prec@1: 92.969(92.969)	
+08-01-24 14:47:Test: [10/79]	Time: 0.1897(0.2024)	Loss: 0.279(0.312)	Prec@1: 92.969(91.122)	
+08-01-24 14:47:Test: [20/79]	Time: 0.1894(0.1972)	Loss: 0.308(0.344)	Prec@1: 90.625(90.699)	
+08-01-24 14:47:Test: [30/79]	Time: 0.1929(0.1953)	Loss: 0.323(0.346)	Prec@1: 93.750(90.751)	
+08-01-24 14:47:Test: [40/79]	Time: 0.1886(0.1941)	Loss: 0.348(0.339)	Prec@1: 90.625(90.701)	
+08-01-24 14:47:Test: [50/79]	Time: 0.1896(0.1932)	Loss: 0.414(0.339)	Prec@1: 89.844(90.656)	
+08-01-24 14:47:Test: [60/79]	Time: 0.1898(0.1926)	Loss: 0.196(0.332)	Prec@1: 93.750(90.817)	
+08-01-24 14:47:Test: [70/79]	Time: 0.1886(0.1922)	Loss: 0.276(0.333)	Prec@1: 92.188(90.812)	
+08-01-24 14:47:Test: [78/79]	Time: 0.0391(0.1900)	Loss: 0.447(0.333)	Prec@1: 93.750(90.860)	
+08-01-24 14:47: * Prec@1 90.860, Loss 0.333
+08-01-24 14:47:*** Computation Percentage: 89.061 %

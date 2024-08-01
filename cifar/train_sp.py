@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
+from torch.profiler import profile, record_function, ProfilerActivity
+
 
 import os
 import shutil
@@ -29,7 +31,7 @@ def parse_args():
     # hyper-parameters are from ResNet paper
     parser = argparse.ArgumentParser(
         description='PyTorch CIFAR10 training with gating')
-    parser.add_argument('cmd', choices=['train', 'test'])
+    parser.add_argument('cmd', choices=['train', 'test', 'profile'])
     parser.add_argument('arch', metavar='ARCH',
                         default='cifar10_feedforward_38',
                         choices=model_names,
@@ -101,12 +103,15 @@ def main():
         logging.info('start evaluating {} with checkpoints from {}'.format(
             args.arch, args.resume))
         test_model(args)
+    
+    elif args.cmd == 'profile':
+        _profile(args)
 
 
 def run_training(args):
     # create model
     model = models.__dict__[args.arch](args.pretrained)
-    model = torch.nn.DataParallel(model).cuda()
+    # model = torch.nn.DataParallel(model).cuda()
 
     best_prec1 = 0
 
@@ -136,7 +141,7 @@ def run_training(args):
                                     num_workers=args.workers)
 
     # define loss function (criterion) and optimizer
-    criterion = nn.CrossEntropyLoss().cuda()
+    criterion = nn.CrossEntropyLoss() #.cuda()
 
     optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad,
                                        model.parameters()),
@@ -159,9 +164,9 @@ def run_training(args):
         # measuring data loading time
         data_time.update(time.time() - end)
 
-        target = target.cuda(async=False)
-        input_var = Variable(input).cuda()
-        target_var = Variable(target).cuda()
+        target = target #.cuda()
+        input_var = Variable(input) #.cuda()
+        target_var = Variable(target) #.cuda()
 
         # compute output
         output, masks, logprobs = model(input_var)
@@ -175,8 +180,8 @@ def run_training(args):
 
         # measure accuracy and record loss
         prec1, = accuracy(output.data, target, topk=(1,))
-        losses.update(loss.data[0], input.size(0))
-        top1.update(prec1[0], input.size(0))
+        losses.update(loss.item(), input.size(0))
+        top1.update(prec1.item(), input.size(0))
         skip_ratios.update(skips, input.size(0))
 
         # compute gradient and do SGD step
@@ -244,9 +249,9 @@ def validate(args, test_loader, model, criterion):
     model.eval()
     end = time.time()
     for i, (input, target) in enumerate(test_loader):
-        target = target.cuda(async=True)
-        input_var = Variable(input, volatile=True).cuda()
-        target_var = Variable(target, volatile=True).cuda()
+        target = target #.cuda()
+        input_var = Variable(input, volatile=True) #.cuda()
+        target_var = Variable(target, volatile=True) #.cuda()
         # compute output
         output, masks, _ = model(input_var)
         skips = [mask.data.le(0.5).float().mean() for mask in masks]
@@ -256,9 +261,9 @@ def validate(args, test_loader, model, criterion):
 
         # measure accuracy and record loss
         prec1, = accuracy(output.data, target, topk=(1,))
-        top1.update(prec1[0], input.size(0))
+        top1.update(prec1.item(), input.size(0))
         skip_ratios.update(skips, input.size(0))
-        losses.update(loss.data[0], input.size(0))
+        losses.update(loss.item(), input.size(0))
         batch_time.update(time.time() - end)
         end = time.time()
 
@@ -284,26 +289,79 @@ def validate(args, test_loader, model, criterion):
         #         skip_ratios.avg[idx],
         #     )
         # )
+        print("{} layer skipping = {:.3f}".format(idx,skip_ratios.avg[idx],))
         skip_summaries.append(1-skip_ratios.avg[idx])
     # compute `computational percentage`
     cp = ((sum(skip_summaries) + 1) / (len(skip_summaries) + 1)) * 100
     logging.info('*** Computation Percentage: {:.3f} %'.format(cp))
-
+   
     return top1.avg
 
 
-def test_model(args):
+def _profile(args):
     # create model
     model = models.__dict__[args.arch](args.pretrained)
-    model = torch.nn.DataParallel(model).cuda()
+    # model = torch.nn.DataParallel(model).cuda()
+    model.eval()
+
+    test_loader = prepare_test_data(dataset=args.dataset,
+                                    batch_size=args.batch_size,
+                                    shuffle=False,
+                                    num_workers=args.workers)
 
     if args.resume:
         if os.path.isfile(args.resume):
             logging.info('=> loading checkpoint `{}`'.format(args.resume))
-            checkpoint = torch.load(args.resume)
+            checkpoint = torch.load(args.resume, map_location=torch.device('cpu'))
+            if not torch.cuda.is_available():
+                remove_prefix = 'module.'
+                state_dict_for_cpu = {k[len(remove_prefix):] if k.startswith(remove_prefix) else k: v for k, v in checkpoint['state_dict'].items()}
+                model.load_state_dict(state_dict_for_cpu)
+            else:
+                model.load_state_dict(checkpoint['state_dict'])
+            args.start_iter = checkpoint['iter']
+            best_prec1 = checkpoint['best_prec1']            
+            logging.info('=> loaded checkpoint `{}` (iter: {})'.format(
+                args.resume, checkpoint['iter']
+            ))
+        else:
+            logging.info('=> no checkpoint found at `{}`'.format(args.resume))
+
+    
+    # inputs = torch.randn(10, 3, 32, 32)
+    times = []
+    for batch_idx, (input, target) in enumerate(test_loader):
+        with profile(activities=[ProfilerActivity.CPU], record_shapes=True) as prof:
+            with record_function("model_inference"):
+                # for (inputs, targets) in tqdm.tqdm(testloader, total=len(testloader)):
+                model(input)
+        
+        print("Batch ",batch_idx)
+        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+        print("Per sample",(prof.profiler.self_cpu_time_total / 1000.) / input.size()[0]," (",input.size()[0],")")
+        times.append((prof.profiler.self_cpu_time_total / 1000.) / input.size()[0]) # in ms
+        print("\n")
+    print("CPU time total on average: ", np.mean(times))
+    exit()
+
+def test_model(args):
+    # create model
+    model = models.__dict__[args.arch](args.pretrained)
+    # model = torch.nn.DataParallel(model).cuda()
+
+    if args.resume:
+        if os.path.isfile(args.resume):
+            logging.info('=> loading checkpoint `{}`'.format(args.resume))
+            checkpoint = torch.load(args.resume, map_location=torch.device('cpu'))
+            if not torch.cuda.is_available():
+                remove_prefix = 'module.'
+                state_dict_for_cpu = {k[len(remove_prefix):] if k.startswith(remove_prefix) else k: v for k, v in checkpoint['state_dict'].items()}
+                model.load_state_dict(state_dict_for_cpu)
+            else:
+                model.load_state_dict(checkpoint['state_dict'])
             args.start_iter = checkpoint['iter']
             best_prec1 = checkpoint['best_prec1']
-            model.load_state_dict(checkpoint['state_dict'])
+            # model.load_state_dict(checkpoint['state_dict'])
             logging.info('=> loaded checkpoint `{}` (iter: {})'.format(
                 args.resume, checkpoint['iter']
             ))
@@ -315,7 +373,7 @@ def test_model(args):
                                     batch_size=args.batch_size,
                                     shuffle=False,
                                     num_workers=args.workers)
-    criterion = nn.CrossEntropyLoss().cuda()
+    criterion = nn.CrossEntropyLoss() #.cuda()
 
     validate(args, test_loader, model, criterion)
 

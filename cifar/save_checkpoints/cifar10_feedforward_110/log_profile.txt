@@ -1,0 +1,2 @@
+08-01-24 14:35:=> loading checkpoint `save_checkpoints/skip_resnet_110.pth.tar`
+08-01-24 14:35:=> loaded checkpoint `save_checkpoints/skip_resnet_110.pth.tar` (iter: 58000)

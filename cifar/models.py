@@ -212,10 +212,14 @@ class FeedforwardGateI(nn.Module):
 
         # discretize output in forward pass.
         # use softmax gradients in backward pass
+        #print(x)
         x = (softmax[:, 1] > 0.5).float().detach() - \
             softmax[:, 1].detach() + softmax[:, 1]
-
         x = x.view(x.size(0), 1, 1, 1)
+#        x = torch.randint(0,2,x.size(),device=x.device)
+#        print(x)
+ #       x = False
+#        logprob = torch.zeros(logprob.size())
         return x, logprob
 
 
@@ -476,6 +480,11 @@ class ResNetFeedForwardSP(nn.Module):
 
 # FeeforwardGate-I
 # For CIFAR-10
+def cifar10_feedforward_20(pretrained=False, **kwargs):
+    """SkipNet-38 with FFGate-I"""
+    model = ResNetFeedForwardSP(BasicBlock, [3, 3, 3], gate_type='ffgate1')
+    return model
+
 def cifar10_feedforward_38(pretrained=False, **kwargs):
     """SkipNet-38 with FFGate-I"""
     model = ResNetFeedForwardSP(BasicBlock, [6, 6, 6], gate_type='ffgate1')
@@ -1275,6 +1284,12 @@ class ResNetRecurrentGateRL(nn.Module):
 
 
 # for CIFAR-10
+#def cifar10_rnn_gate_rl_38(pretrained=False, **kwargs):
+#    """SkipNet-38 + RL with Recurrent Gate"""
+#    model = ResNetRecurrentGateRL(BasicBlock, [6, 6, 6], num_classes=10,
+#                                  embed_dim=10, hidden_dim=10)
+#    return model
+
 def cifar10_rnn_gate_rl_38(pretrained=False, **kwargs):
     """SkipNet-38 + RL with Recurrent Gate"""
     model = ResNetRecurrentGateRL(BasicBlock, [6, 6, 6], num_classes=10,
