@@ -349,7 +349,7 @@ def _profile(args):
     for batch_idx, (input, target) in enumerate(test_loader):
         if torch.cuda.is_available():
             input_var = Variable(input, volatile=True).cuda()
-            _activities=[ProfilerActivity.GPU]
+            _activities=[ProfilerActivity.CPU,ProfilerActivity.CUDA]
         else:
             input_var = Variable(input, volatile=True) #.cuda()
             _activities=[ProfilerActivity.CPU]
