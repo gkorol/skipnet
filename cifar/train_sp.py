@@ -347,10 +347,14 @@ def _profile(args):
     # inputs = torch.randn(10, 3, 32, 32)
     times = []
     for batch_idx, (input, target) in enumerate(test_loader):
+        if torch.cuda.is_available():
+            input_var = Variable(input, volatile=True).cuda()
+        else:
+            input_var = Variable(input, volatile=True) #.cuda()
         with profile(activities=[ProfilerActivity.CPU], record_shapes=True) as prof:
             with record_function("model_inference"):
                 # for (inputs, targets) in tqdm.tqdm(testloader, total=len(testloader)):
-                model(input)
+                model(input_var)
         
         print("Batch ",batch_idx)
         print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
