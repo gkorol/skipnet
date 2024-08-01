@@ -141,7 +141,10 @@ def run_training(args):
                                     num_workers=args.workers)
 
     # define loss function (criterion) and optimizer
-    criterion = nn.CrossEntropyLoss() #.cuda()
+    if torch.cuda.is_available():
+        criterion = nn.CrossEntropyLoss().cuda()
+    else:
+        criterion = nn.CrossEntropyLoss() #.cuda()
 
     optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad,
                                        model.parameters()),
@@ -164,9 +167,14 @@ def run_training(args):
         # measuring data loading time
         data_time.update(time.time() - end)
 
-        target = target #.cuda()
-        input_var = Variable(input) #.cuda()
-        target_var = Variable(target) #.cuda()
+        if torch.cuda.is_available():
+            target = target.cuda()
+            input_var = Variable(input).cuda()
+            target_var = Variable(target).cuda()
+        else:
+            target = target #.cuda()
+            input_var = Variable(input) #.cuda()
+            target_var = Variable(target) #.cuda()
 
         # compute output
         output, masks, logprobs = model(input_var)
@@ -249,9 +257,14 @@ def validate(args, test_loader, model, criterion):
     model.eval()
     end = time.time()
     for i, (input, target) in enumerate(test_loader):
-        target = target #.cuda()
-        input_var = Variable(input, volatile=True) #.cuda()
-        target_var = Variable(target, volatile=True) #.cuda()
+        if torch.cuda.is_available():
+            target = target.cuda()
+            input_var = Variable(input, volatile=True).cuda()
+            target_var = Variable(target, volatile=True).cuda()
+        else:
+            target = target #.cuda()
+            input_var = Variable(input, volatile=True) #.cuda()
+            target_var = Variable(target, volatile=True) #.cuda()
         # compute output
         output, masks, _ = model(input_var)
         skips = [mask.data.le(0.5).float().mean() for mask in masks]
@@ -302,6 +315,8 @@ def _profile(args):
     # create model
     model = models.__dict__[args.arch](args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
+    if torch.cuda.is_available():
+        model.to('cuda')
     model.eval()
 
     test_loader = prepare_test_data(dataset=args.dataset,
@@ -348,6 +363,8 @@ def test_model(args):
     # create model
     model = models.__dict__[args.arch](args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
+    if torch.cuda.is_available():
+        model.to('cuda')
 
     if args.resume:
         if os.path.isfile(args.resume):
