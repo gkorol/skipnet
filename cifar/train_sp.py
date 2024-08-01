@@ -363,7 +363,7 @@ def _profile(args):
         print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
         print("Per sample",(prof.profiler.self_cpu_time_total / 1000.) / input.size()[0]," (",input.size()[0],")")
         times.append((prof.profiler.self_cpu_time_total / 1000.) / input.size()[0]) # in ms
-        _tmp = sum([item.cuda_time for item in prof.function_events])
+        _tmp = sum([item.cuda_time for item in prof.profiler.function_events])
         times_gpu.append((_tmp / 1000.) / input.size()[0])
         print("\n")
     print("CPU time total on average: ", np.mean(times))
