@@ -328,7 +328,8 @@ def _profile(args):
         if os.path.isfile(args.resume):
             logging.info('=> loading checkpoint `{}`'.format(args.resume))
             checkpoint = torch.load(args.resume, map_location=torch.device('cpu'))
-            if not torch.cuda.is_available():
+            # if not torch.cuda.is_available():
+            if True:
                 remove_prefix = 'module.'
                 state_dict_for_cpu = {k[len(remove_prefix):] if k.startswith(remove_prefix) else k: v for k, v in checkpoint['state_dict'].items()}
                 model.load_state_dict(state_dict_for_cpu)
@@ -370,7 +371,8 @@ def test_model(args):
         if os.path.isfile(args.resume):
             logging.info('=> loading checkpoint `{}`'.format(args.resume))
             checkpoint = torch.load(args.resume, map_location=torch.device('cpu'))
-            if not torch.cuda.is_available():
+            # if not torch.cuda.is_available():
+            if True:
                 remove_prefix = 'module.'
                 state_dict_for_cpu = {k[len(remove_prefix):] if k.startswith(remove_prefix) else k: v for k, v in checkpoint['state_dict'].items()}
                 model.load_state_dict(state_dict_for_cpu)
