@@ -857,7 +857,7 @@ class RLFeedforwardGateI(nn.Module):
         softmax = self.prob_layer(x)
 
         if self.training:
-            action = softmax.multinomial()
+            action = softmax.multinomial(num_samples=1)
             self.saved_action = action
         else:
             action = (softmax[:, 1] > 0.5).float()
@@ -898,7 +898,7 @@ class RLFeedforwardGateII(nn.Module):
         softmax = self.prob_layer(x)
 
         if self.training:
-            action = softmax.multinomial()
+            action = softmax.multinomial(num_samples=1)
             self.saved_action = action
         else:
             action = (softmax[:, 1] > 0.5).float()
@@ -1041,7 +1041,7 @@ class ResNetFeedForwardRL(nn.Module):
 
         if reinforce:  # for pure RL
             softmax = self.softmax(x)
-            action = softmax.multinomial()
+            action = softmax.multinomial(num_samples=1)
             self.saved_actions.append(action)
 
         return x, masks, gprobs
@@ -1142,7 +1142,7 @@ class RNNGatePolicy(nn.Module):
             proj = self.proj(out.squeeze())
             prob = self.prob(proj)
             bi_prob = torch.cat([1 - prob, prob], dim=1)
-            action = bi_prob.multinomial()
+            action = bi_prob.multinomial(num_samples=1)
             self.saved_actions.append(action)
         else:
             proj = self.proj(out.squeeze())
@@ -1274,7 +1274,7 @@ class ResNetRecurrentGateRL(nn.Module):
         if self.training:
             x = self.fc(x)
             softmax = self.softmax(x)
-            pred = softmax.multinomial()
+            pred = softmax.multinomial(num_samples=1)
         else:
             x = self.fc(x)
             pred = x.max(1)[1]
