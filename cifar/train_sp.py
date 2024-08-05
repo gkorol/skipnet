@@ -159,6 +159,8 @@ def run_training(args):
     skip_ratios = ListAverageMeter()
 
     end = time.time()
+    if torch.cuda.is_available():
+        model.to('cuda')
     for i in range(args.start_iter, args.iters):
         model.train()
         adjust_learning_rate(args, optimizer, i)
