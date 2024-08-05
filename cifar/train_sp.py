@@ -362,7 +362,7 @@ def _profile(args):
         print("Batch ",batch_idx)
         print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
         _time_cpu = (prof.profiler.self_cpu_time_total / 1000.) / input.size()[0] # in ms
-        print("Per sample CPU",_time_cpu," (",input.size()[0],")")
+        print("[",batch_idx,"] Per sample CPU",_time_cpu," (",input.size()[0],")")
         times.append(_time_cpu) 
         if torch.cuda.is_available():
             # _time_gpu = sum([item.cuda_time for item in prof.profiler.function_events])
@@ -370,6 +370,9 @@ def _profile(args):
             print("Per sample GPU",_time_gpu," (",input.size()[0],")")
             times_gpu.append(_time_gpu)
         print("\n")
+        if batch_idx  > 100:
+            break
+
     print("CPU time total on average: ", np.mean(times))
     if torch.cuda.is_available():
         print("GPU time total on average: ", np.mean(times_gpu))

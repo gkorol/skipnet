@@ -140,6 +140,11 @@ def cifar100_resnet_38(pretrained=False, **kwargs):
     model = ResNet(BasicBlock, [6, 6, 6], num_classes=100)
     return model
 
+def cifar100_resnet_44(pretrained=False, **kwargs):
+    # n = 6
+    model = ResNet(BasicBlock, [7, 7, 7], num_classes=100)
+    return model
+
 
 # ResNet-74
 def cifar100_resnet_74(pretrained=False, **kwargs):
@@ -306,10 +311,15 @@ class FeedforwardGateII(nn.Module):
         logprob = self.logprob(x)
 
         # discretize
-        x = (softmax[:, 1] > 0.5).float().detach() - \
-            softmax[:, 1].detach() + softmax[:, 1]
+        # x = (softmax[:, 1] > 0.5).float().detach() - \
+        #     softmax[:, 1].detach() + softmax[:, 1]
+        # x = x.view(x.size(0), 1, 1, 1)
 
-        x = x.view(x.size(0), 1, 1, 1)
+        # for ACTUALLY skipping (requires batch size = 1)
+        x = (softmax[1] > 0.5).float().detach() - \
+            softmax[1].detach() + softmax[1]
+        x = x.view(1, 1, 1, 1)
+            
         return x, logprob
 
 
@@ -458,13 +468,30 @@ class ResNetFeedForwardSP(nn.Module):
         masks.append(mask.squeeze())
         prev = x  # input of next layer
 
+        # Original:
+        # for g in range(3):
+        #     for i in range(0 + int(g == 0), self.num_layers[g]):
+        #         if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
+        #             prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
+        #         x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
+        #         prev = x = mask.expand_as(x) * x \
+        #                    + (1 - mask).expand_as(prev) * prev
+        #         mask, gprob = getattr(self, 'group{}_gate{}'.format(g+1, i))(x)
+        #         gprobs.append(gprob)
+        #         masks.append(mask.squeeze())
+
+        # for ACTUALLY skipping (requires batch size = 1)
         for g in range(3):
             for i in range(0 + int(g == 0), self.num_layers[g]):
-                if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
-                    prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
-                x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
-                prev = x = mask.expand_as(x) * x \
-                           + (1 - mask).expand_as(prev) * prev
+                # if mask or i == 0:
+                if True:
+                    if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
+                        prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
+                    x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
+                    prev = x = mask.expand_as(x) * x \
+                            + (1 - mask).expand_as(prev) * prev
+                # else:
+                #     print("Skipping",g,i)
                 mask, gprob = getattr(self, 'group{}_gate{}'.format(g+1, i))(x)
                 gprobs.append(gprob)
                 masks.append(mask.squeeze())
@@ -507,6 +534,12 @@ def cifar10_feedforward_110(pretrained=False, **kwargs):
 def cifar100_feeforward_38(pretrained=False, **kwargs):
     """SkipNet-38 with FFGate-I"""
     model = ResNetFeedForwardSP(BasicBlock, [6, 6, 6], num_classes=100,
+                                gate_type='ffgate1')
+    return model
+
+def cifar100_feeforward_44(pretrained=False, **kwargs):
+    """SkipNet-38 with FFGate-I"""
+    model = ResNetFeedForwardSP(BasicBlock, [7, 7, 7], num_classes=100,
                                 gate_type='ffgate1')
     return model
 
@@ -560,10 +593,17 @@ class RNNGate(nn.Module):
 
     def init_hidden(self, batch_size):
         # The axes semantics are (num_layers, minibatch_size, hidden_dim)
-        return (autograd.Variable(torch.zeros(1, batch_size,
-                                              self.hidden_dim).cuda()),
-                autograd.Variable(torch.zeros(1, batch_size,
-                                              self.hidden_dim).cuda()))
+        if torch.cuda.is_available():
+            _a = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim).cuda())
+            _b = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim).cuda())
+        else:
+            _a = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim))
+            _b = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim))
+        return (_a,_b)
 
     def repackage_hidden(self):
         self.hidden = repackage_hidden(self.hidden)
@@ -602,10 +642,17 @@ class SoftRNNGate(nn.Module):
         self.prob = nn.Sigmoid()
 
     def init_hidden(self, batch_size):
-        return (autograd.Variable(torch.zeros(1, batch_size,
-                                              self.hidden_dim).cuda()),
-                autograd.Variable(torch.zeros(1, batch_size,
-                                              self.hidden_dim).cuda()))
+        if torch.cuda.is_available():
+            _a = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim).cuda())
+            _b = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim).cuda())
+        else:
+            _a = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim))
+            _b = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim))
+        return (_a,_b)
 
     def repackage_hidden(self):
         self.hidden = repackage_hidden(self.hidden)
@@ -1124,10 +1171,17 @@ class RNNGatePolicy(nn.Module):
 
     def init_hidden(self, batch_size):
         # The axes semantics are (num_layers, minibatch_size, hidden_dim)
-        return (autograd.Variable(torch.zeros(1, batch_size,
-                                              self.hidden_dim).cuda()),
-                autograd.Variable(torch.zeros(1, batch_size,
-                                              self.hidden_dim).cuda()))
+        if torch.cuda.is_available():
+            _a = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim).cuda())
+            _b = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim).cuda())
+        else:
+            _a = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim))
+            _b = autograd.Variable(torch.zeros(1, batch_size,
+                                              self.hidden_dim))
+        return (_a,_b)
 
     def repackage_hidden(self):
         self.hidden = repackage_hidden(self.hidden)
