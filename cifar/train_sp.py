@@ -361,6 +361,7 @@ def _profile(args):
                 # for (inputs, targets) in tqdm.tqdm(testloader, total=len(testloader)):
                 model(input_var)
         
+        prof.export_chrome_trace("trace.json")
         print("Batch ",batch_idx)
         print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
         _time_cpu = (prof.profiler.self_cpu_time_total / 1000.) / input.size()[0] # in ms
@@ -372,7 +373,7 @@ def _profile(args):
             print("Per sample GPU",_time_gpu," (",input.size()[0],")")
             times_gpu.append(_time_gpu)
         print("\n")
-        if batch_idx  > 100:
+        if batch_idx  > 1:
             break
 
     print("CPU time total on average: ", np.mean(times))
@@ -419,6 +420,7 @@ def test_model(args):
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
+    # torch.save(state, os.path.join(os.path.dirname(filename),'checkpoint.t7'))
     if is_best:
         save_path = os.path.dirname(filename)
         shutil.copyfile(filename, os.path.join(save_path,

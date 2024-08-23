@@ -21,10 +21,10 @@ class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = nn.BatchNorm2d(planes)
+        self.bn1 = nn.BatchNorm2d(planes, track_running_stats=True)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
-        self.bn2 = nn.BatchNorm2d(planes)
+        self.bn2 = nn.BatchNorm2d(planes, track_running_stats=True)
         self.downsample = downsample
         self.stride = stride
 
@@ -57,7 +57,7 @@ class ResNet(nn.Module):
         self.inplanes = 16
         super(ResNet, self).__init__()
         self.conv1 = conv3x3(3, 16)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.bn1 = nn.BatchNorm2d(16, track_running_stats=True)
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self._make_layer(block, 16, layers[0])
         self.layer2 = self._make_layer(block, 32, layers[1], stride=2)
@@ -79,7 +79,7 @@ class ResNet(nn.Module):
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion),
+                nn.BatchNorm2d(planes * block.expansion, track_running_stats=True),
             )
 
         layers = []
@@ -183,12 +183,12 @@ class FeedforwardGateI(nn.Module):
 
         self.maxpool = nn.MaxPool2d(2)
         self.conv1 = conv3x3(channel, channel)
-        self.bn1 = nn.BatchNorm2d(channel)
+        self.bn1 = nn.BatchNorm2d(channel, track_running_stats=True)
         self.relu1 = nn.ReLU(inplace=True)
 
         # adding another conv layer
         self.conv2 = conv3x3(channel, channel, stride=2)
-        self.bn2 = nn.BatchNorm2d(channel)
+        self.bn2 = nn.BatchNorm2d(channel, track_running_stats=True)
         self.relu2 = nn.ReLU(inplace=True)
 
         pool_size = math.floor(pool_size/2)  # for max pooling
@@ -217,14 +217,15 @@ class FeedforwardGateI(nn.Module):
 
         # discretize output in forward pass.
         # use softmax gradients in backward pass
-        #print(x)
         x = (softmax[:, 1] > 0.5).float().detach() - \
             softmax[:, 1].detach() + softmax[:, 1]
         x = x.view(x.size(0), 1, 1, 1)
-#        x = torch.randint(0,2,x.size(),device=x.device)
-#        print(x)
- #       x = False
-#        logprob = torch.zeros(logprob.size())
+
+        # # for ACTUALLY skipping (requires batch size = 1)
+        # x = (softmax[1] > 0.5).float().detach() - \
+        #     softmax[1].detach() + softmax[1]
+        # x = x.view(1, 1, 1, 1)
+
         return x, logprob
 
 
@@ -240,12 +241,12 @@ class SoftGateI(nn.Module):
 
         self.maxpool = nn.MaxPool2d(2)
         self.conv1 = conv3x3(channel, channel)
-        self.bn1 = nn.BatchNorm2d(channel)
+        self.bn1 = nn.BatchNorm2d(channel, track_running_stats=True)
         self.relu1 = nn.ReLU(inplace=True)
 
         # adding another conv layer
         self.conv2 = conv3x3(channel, channel, stride=2)
-        self.bn2 = nn.BatchNorm2d(channel)
+        self.bn2 = nn.BatchNorm2d(channel, track_running_stats=True)
         self.relu2 = nn.ReLU(inplace=True)
 
         pool_size = math.floor(pool_size/2)  # for max pooling
@@ -279,7 +280,16 @@ class SoftGateI(nn.Module):
             x = (x > 0.5).float()
         return x, logprob
 
-
+class GateDebug(nn.Module):
+    def __init__(self):
+        super(GateDebug, self).__init__()
+        self.layer = nn.LogSoftmax()
+        self.logprob = nn.LogSoftmax()
+    def forward(self, x):
+        x = self.layer(x)
+        logprob = self.logprob(x)
+        return x,logprob
+    
 # FFGate-II
 class FeedforwardGateII(nn.Module):
     """ use single conv (stride=2) layer only"""
@@ -289,7 +299,7 @@ class FeedforwardGateII(nn.Module):
         self.channel = channel
 
         self.conv1 = conv3x3(channel, channel, stride=2)
-        self.bn1 = nn.BatchNorm2d(channel)
+        self.bn1 = nn.BatchNorm2d(channel, track_running_stats=True)
         self.relu1 = nn.ReLU(inplace=True)
 
         pool_size = math.floor(pool_size/2 + 0.5) # for conv stride = 2
@@ -331,7 +341,7 @@ class SoftGateII(nn.Module):
         self.channel = channel
 
         self.conv1 = conv3x3(channel, channel, stride=2)
-        self.bn1 = nn.BatchNorm2d(channel)
+        self.bn1 = nn.BatchNorm2d(channel, track_running_stats=True)
         self.relu1 = nn.ReLU(inplace=True)
 
         pool_size = math.floor(pool_size / 2 + 0.5)  # for conv stride = 2
@@ -358,6 +368,16 @@ class SoftGateII(nn.Module):
             x = (x > 0.5).float()
         return x, logprob
 
+class DownsampleA(nn.Module):
+
+    def __init__(self, nIn, nOut, stride):
+        super(DownsampleA, self).__init__()
+        self.avg = nn.AvgPool2d(stride)
+        self.expand_ratio = nOut // nIn
+
+    def forward(self, x):
+        x = self.avg(x)
+        return torch.cat([x] + [x.mul(0)] * (self.expand_ratio - 1), 1)
 
 class ResNetFeedForwardSP(nn.Module):
     """ SkipNets with Feed-forward Gates for Supervised Pre-training stage.
@@ -370,7 +390,7 @@ class ResNetFeedForwardSP(nn.Module):
 
         self.num_layers = layers
         self.conv1 = conv3x3(3, 16)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.bn1 = nn.BatchNorm2d(16, track_running_stats=True)
         self.relu = nn.ReLU(inplace=True)
 
         # going to have 3 groups of layers. For the easiness of skipping,
@@ -420,12 +440,12 @@ class ResNetFeedForwardSP(nn.Module):
         """ create one block and optional a gate module """
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion),
-
-            )
+            # downsample = nn.Sequential(
+            #     nn.Conv2d(self.inplanes, planes * block.expansion,
+            #               kernel_size=1, stride=stride, bias=False),
+            #     nn.BatchNorm2d(planes * block.expansion, track_running_stats=True),
+            # )
+            downsample = DownsampleA(self.inplanes, planes * block.expansion, stride)
         layer = block(self.inplanes, planes, stride, downsample)
         self.inplanes = planes * block.expansion
 
@@ -441,6 +461,8 @@ class ResNetFeedForwardSP(nn.Module):
         elif gate_type == 'softgate2':
             gate_layer = SoftGateII(pool_size=pool_size,
                                     channel=planes*block.expansion)
+        elif gate_type == 'debug':
+            gate_layer = GateDebug()
         else:
             gate_layer = None
 
@@ -483,8 +505,8 @@ class ResNetFeedForwardSP(nn.Module):
         # for ACTUALLY skipping (requires batch size = 1)
         for g in range(3):
             for i in range(0 + int(g == 0), self.num_layers[g]):
-                # if mask or i == 0:
-                if True:
+                if mask or i == 0:
+                # if i == 0:
                     if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
                         prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
                     x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
@@ -510,6 +532,7 @@ class ResNetFeedForwardSP(nn.Module):
 def cifar10_feedforward_20(pretrained=False, **kwargs):
     """SkipNet-38 with FFGate-I"""
     model = ResNetFeedForwardSP(BasicBlock, [3, 3, 3], gate_type='ffgate1')
+    # model = ResNetFeedForwardSP(BasicBlock, [3, 3, 3], gate_type='debug')
     return model
 
 def cifar10_feedforward_38(pretrained=False, **kwargs):
@@ -681,7 +704,7 @@ class ResNetRecurrentGateSP(nn.Module):
 
         self.num_layers = layers
         self.conv1 = conv3x3(3, 16)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.bn1 = nn.BatchNorm2d(16, track_running_stats=True)
         self.relu = nn.ReLU(inplace=True)
 
         self.embed_dim = embed_dim
@@ -707,7 +730,7 @@ class ResNetRecurrentGateSP(nn.Module):
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm2d):
+            elif isinstance(m, nn.BatchNorm2d, track_running_stats=True):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
@@ -736,7 +759,7 @@ class ResNetRecurrentGateSP(nn.Module):
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion),
+                nn.BatchNorm2d(planes * block.expansion, track_running_stats=True),
 
             )
         layer = block(self.inplanes, planes, stride, downsample)
@@ -799,6 +822,12 @@ class ResNetRecurrentGateSP(nn.Module):
 
 
 # For CIFAR-10
+def cifar10_rnn_gate_20(pretrained=False, **kwargs):
+    """SkipNet-38 with Recurrent Gate"""
+    model = ResNetRecurrentGateSP(BasicBlock, [3, 3, 3], num_classes=10,
+                                  embed_dim=10, hidden_dim=10)
+    return model
+
 def cifar10_rnn_gate_38(pretrained=False, **kwargs):
     """SkipNet-38 with Recurrent Gate"""
     model = ResNetRecurrentGateSP(BasicBlock, [6, 6, 6], num_classes=10,
@@ -869,12 +898,12 @@ class RLFeedforwardGateI(nn.Module):
 
         self.maxpool = nn.MaxPool2d(2)
         self.conv1 = conv3x3(channel, channel)
-        self.bn1 = nn.BatchNorm2d(channel)
+        self.bn1 = nn.BatchNorm2d(channel, track_running_stats=True)
         self.relu1 = nn.ReLU(inplace=True)
 
         # adding another conv layer
         self.conv2 = conv3x3(channel, channel, stride=2)
-        self.bn2 = nn.BatchNorm2d(channel)
+        self.bn2 = nn.BatchNorm2d(channel, track_running_stats=True)
         self.relu2 = nn.ReLU(inplace=True)
 
         pool_size = math.floor(pool_size/2)  # for max pooling
@@ -921,7 +950,7 @@ class RLFeedforwardGateII(nn.Module):
         self.channel = channel
 
         self.conv1 = conv3x3(channel, channel, stride=2)
-        self.bn1 = nn.BatchNorm2d(channel)
+        self.bn1 = nn.BatchNorm2d(channel, track_running_stats=True)
         self.relu1 = nn.ReLU(inplace=True)
 
         pool_size = math.floor(pool_size/2 + 0.5)  # for conv stride = 2
@@ -965,7 +994,7 @@ class ResNetFeedForwardRL(nn.Module):
 
         self.num_layers = layers
         self.conv1 = conv3x3(3, 16)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.bn1 = nn.BatchNorm2d(16, track_running_stats=True)
         self.relu = nn.ReLU(inplace=True)
 
         self.gate_instances = []
@@ -1026,7 +1055,7 @@ class ResNetFeedForwardRL(nn.Module):
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion),
+                nn.BatchNorm2d(planes * block.expansion, track_running_stats=True),
 
             )
         layer = block(self.inplanes, planes, stride, downsample)
@@ -1199,9 +1228,16 @@ class RNNGatePolicy(nn.Module):
             action = bi_prob.multinomial(num_samples=1)
             self.saved_actions.append(action)
         else:
+            # proj = self.proj(out.squeeze())
+            # prob = self.prob(proj)
+            # bi_prob = torch.cat([1 - prob, prob], dim=1)
+            # action = (prob > 0.5).float()
+            # self.saved_actions.append(action)
+
+            # for skiping (batch one)
             proj = self.proj(out.squeeze())
             prob = self.prob(proj)
-            bi_prob = torch.cat([1 - prob, prob], dim=1)
+            bi_prob = torch.cat([1 - prob, prob], dim=0)
             action = (prob > 0.5).float()
             self.saved_actions.append(action)
         action = action.view(action.size(0), 1, 1, 1).float()
@@ -1218,7 +1254,7 @@ class ResNetRecurrentGateRL(nn.Module):
 
         self.num_layers = layers
         self.conv1 = conv3x3(3, 16)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.bn1 = nn.BatchNorm2d(16, track_running_stats=True)
         self.relu = nn.ReLU(inplace=True)
 
         self.embed_dim = embed_dim
@@ -1272,7 +1308,7 @@ class ResNetRecurrentGateRL(nn.Module):
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion),
+                nn.BatchNorm2d(planes * block.expansion, track_running_stats=True),
 
             )
         layer = block(self.inplanes, planes, stride, downsample)
@@ -1308,13 +1344,30 @@ class ResNetRecurrentGateRL(nn.Module):
         masks.append(mask.squeeze())
         prev = x
 
+        # for g in range(3):
+        #     for i in range(0 + int(g == 0), self.num_layers[g]):
+        #         if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
+        #             prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
+        #         x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
+        #         prev = x = mask.expand_as(x) * x + \
+        #                    (1 - mask).expand_as(prev)*prev
+        #         if not (g == 2 and (i == self.num_layers[g] -1)):
+        #             gate_feature = getattr(self,
+        #                         'group{}_gate{}'.format(g+1, i))(x)
+        #             mask, gprob = self.control(gate_feature)
+        #             gprobs.append(gprob)
+        #             masks.append(mask.squeeze())
+
+        # For actually skip layer
         for g in range(3):
             for i in range(0 + int(g == 0), self.num_layers[g]):
-                if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
-                    prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
-                x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
-                prev = x = mask.expand_as(x) * x + \
-                           (1 - mask).expand_as(prev)*prev
+                # if mask or i == 0:
+                if i==0:
+                    if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
+                        prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
+                    x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
+                    prev = x = mask.expand_as(x) * x + \
+                            (1 - mask).expand_as(prev)*prev
                 if not (g == 2 and (i == self.num_layers[g] -1)):
                     gate_feature = getattr(self,
                                 'group{}_gate{}'.format(g+1, i))(x)
@@ -1338,11 +1391,11 @@ class ResNetRecurrentGateRL(nn.Module):
 
 
 # for CIFAR-10
-#def cifar10_rnn_gate_rl_38(pretrained=False, **kwargs):
-#    """SkipNet-38 + RL with Recurrent Gate"""
-#    model = ResNetRecurrentGateRL(BasicBlock, [6, 6, 6], num_classes=10,
-#                                  embed_dim=10, hidden_dim=10)
-#    return model
+def cifar10_rnn_gate_rl_20(pretrained=False, **kwargs):
+    """SkipNet-38 + RL with Recurrent Gate"""
+    model = ResNetRecurrentGateRL(BasicBlock, [3, 3, 3], num_classes=10,
+                                  embed_dim=10, hidden_dim=10)
+    return model
 
 def cifar10_rnn_gate_rl_38(pretrained=False, **kwargs):
     """SkipNet-38 + RL with Recurrent Gate"""
