@@ -491,32 +491,32 @@ class ResNetFeedForwardSP(nn.Module):
         prev = x  # input of next layer
 
         # Original:
-        # for g in range(3):
-        #     for i in range(0 + int(g == 0), self.num_layers[g]):
-        #         if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
-        #             prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
-        #         x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
-        #         prev = x = mask.expand_as(x) * x \
-        #                    + (1 - mask).expand_as(prev) * prev
-        #         mask, gprob = getattr(self, 'group{}_gate{}'.format(g+1, i))(x)
-        #         gprobs.append(gprob)
-        #         masks.append(mask.squeeze())
-
-        # for ACTUALLY skipping (requires batch size = 1)
         for g in range(3):
             for i in range(0 + int(g == 0), self.num_layers[g]):
-                if mask or i == 0:
-                # if i == 0:
-                    if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
-                        prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
-                    x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
-                    prev = x = mask.expand_as(x) * x \
-                            + (1 - mask).expand_as(prev) * prev
-                # else:
-                #     print("Skipping",g,i)
+                if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
+                    prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
+                x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
+                prev = x = mask.expand_as(x) * x \
+                           + (1 - mask).expand_as(prev) * prev
                 mask, gprob = getattr(self, 'group{}_gate{}'.format(g+1, i))(x)
                 gprobs.append(gprob)
                 masks.append(mask.squeeze())
+
+        # # for ACTUALLY skipping (requires batch size = 1)
+        # for g in range(3):
+        #     for i in range(0 + int(g == 0), self.num_layers[g]):
+        #         if mask or i == 0:
+        #         # if i == 0:
+        #             if getattr(self, 'group{}_ds{}'.format(g+1, i)) is not None:
+        #                 prev = getattr(self, 'group{}_ds{}'.format(g+1, i))(prev)
+        #             x = getattr(self, 'group{}_layer{}'.format(g+1, i))(x)
+        #             prev = x = mask.expand_as(x) * x \
+        #                     + (1 - mask).expand_as(prev) * prev
+        #         # else:
+        #         #     print("Skipping",g,i)
+        #         mask, gprob = getattr(self, 'group{}_gate{}'.format(g+1, i))(x)
+        #         gprobs.append(gprob)
+        #         masks.append(mask.squeeze())
 
         del masks[-1]
 
