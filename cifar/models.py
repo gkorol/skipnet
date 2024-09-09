@@ -321,14 +321,14 @@ class FeedforwardGateII(nn.Module):
         logprob = self.logprob(x)
 
         # discretize
-        # x = (softmax[:, 1] > 0.5).float().detach() - \
-        #     softmax[:, 1].detach() + softmax[:, 1]
-        # x = x.view(x.size(0), 1, 1, 1)
+        x = (softmax[:, 1] > 0.5).float().detach() - \
+            softmax[:, 1].detach() + softmax[:, 1]
+        x = x.view(x.size(0), 1, 1, 1)
 
-        # for ACTUALLY skipping (requires batch size = 1)
-        x = (softmax[1] > 0.5).float().detach() - \
-            softmax[1].detach() + softmax[1]
-        x = x.view(1, 1, 1, 1)
+        # # for ACTUALLY skipping (requires batch size = 1)
+        # x = (softmax[1] > 0.5).float().detach() - \
+        #     softmax[1].detach() + softmax[1]
+        # x = x.view(1, 1, 1, 1)
             
         return x, logprob
 
