@@ -554,6 +554,12 @@ def cifar10_feedforward_110(pretrained=False, **kwargs):
 
 
 # For CIFAR-100
+def cifar100_feeforward_20(pretrained=False, **kwargs):
+    """SkipNet-20 with FFGate-I"""
+    model = ResNetFeedForwardSP(BasicBlock, [3, 3, 3], num_classes=100,
+                                gate_type='ffgate1')
+    return model
+
 def cifar100_feeforward_38(pretrained=False, **kwargs):
     """SkipNet-38 with FFGate-I"""
     model = ResNetFeedForwardSP(BasicBlock, [6, 6, 6], num_classes=100,
